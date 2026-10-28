@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Visor de DTE</title>
+<style>
+:root{--bg:#edf0ec;--card:#fff;--tx:#1c2b2a;--mu:#5d6b69;--bd:#cfd8d4;--ac:#1b5e4b;--ac2:#e3f0eb;--red:#b3261e;--warn:#fff1cc;--wb:#e0b84a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 "Segoe UI",system-ui,sans-serif}
+header{background:var(--ac);color:#fff;padding:14px 20px}
+header h1{margin:0;font:700 20px Georgia,serif}
+header p{margin:2px 0 0;font-size:13px;opacity:.9}
+main{max-width:1000px;margin:0 auto;padding:18px 14px 40px}
+button,.btn{font:inherit;cursor:pointer;border:1px solid var(--ac);background:var(--ac);color:#fff;padding:8px 14px;border-radius:6px}
+button.sec{background:#fff;color:var(--ac)}
+button:focus-visible,input:focus-visible,select:focus-visible,tr:focus-visible{outline:3px solid #f2a900;outline-offset:1px}
+.drop{border:3px dashed var(--ac);border-radius:12px;background:var(--card);text-align:center;padding:56px 20px;margin-top:10px}
+.drop.on{background:var(--ac2)}
+.drop h2{margin:0 0 6px;font:700 24px Georgia,serif}
+.drop p{color:var(--mu);margin:0 0 16px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.bar .sp{flex:1}
+.aviso{background:var(--warn);border-left:5px solid var(--wb);padding:8px 12px;margin-bottom:8px;border-radius:4px;display:flex;gap:10px;justify-content:space-between}
+.aviso button{background:none;border:0;color:var(--tx);padding:0 4px;font-size:18px}
+.ficha{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:24px}
+.ficha h2{margin:0;font:700 26px Georgia,serif}
+.meta{color:var(--mu);margin:4px 0 14px}
+.meta b{color:var(--tx);font-weight:600}
+.partes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}
+.parte{border:1px solid var(--bd);border-radius:6px;padding:10px 14px}
+.parte h3{margin:0 0 4px;font-size:14px;color:var(--ac)}
+.parte p{margin:2px 0}
+.nota{color:var(--mu);font-size:13px;font-style:italic}
+table{width:100%;border-collapse:collapse}
+th{background:var(--ac2);text-align:left;font-size:13px;padding:6px 8px;border-bottom:2px solid var(--ac)}
+td{padding:6px 8px;border-bottom:1px solid var(--bd);vertical-align:top}
+.r{text-align:right;font-variant-numeric:tabular-nums}
+.scroll{overflow-x:auto}
+.tot{margin:16px 0 0 auto;max-width:420px}
+.tot div{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--bd)}
+.tot .g{font:700 20px Georgia,serif;border-bottom:3px double var(--ac);color:var(--ac)}
+.tag{font-size:11px;border:1px solid var(--bd);border-radius:10px;padding:0 7px;color:var(--mu);margin-left:6px;white-space:nowrap}
+.tag.est{background:var(--warn);border-color:var(--wb);color:#6b4e00}
+.warn{background:var(--warn);border-left:5px solid var(--wb);padding:8px 12px;margin-top:14px;border-radius:4px}
+.cod{font-family:Consolas,monospace;font-size:13px;word-break:break-all}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:10px}
+.k{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px 14px}
+.k span{display:block;color:var(--mu);font-size:13px}
+.k b{font:700 20px Georgia,serif}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+input,select{font:inherit;padding:7px 9px;border:1px solid var(--bd);border-radius:6px;background:#fff}
+.lote{background:var(--card);border:1px solid var(--bd);border-radius:8px}
+.lote tbody tr{cursor:pointer}.lote tbody tr:hover{background:var(--ac2)}
+.neg{color:var(--red)}
+.lote td:nth-child(6),.lote td:nth-child(1){white-space:nowrap}
+main{max-width:1180px}
+.priv{margin-top:14px;color:var(--ac);font-size:13px}
+footer{text-align:center;color:var(--mu);font-size:12px;padding:20px}
+@media(max-width:640px){.partes{grid-template-columns:1fr}.ficha{padding:14px}}
+@media print{body{background:#fff}header,.noprint,footer,.priv{display:none!important}main{padding:0;max-width:none}.ficha,.lote,.k{border:0}th{background:#fff}.tot .g{color:#000}}
+</style>
+</head>
+<body>
+<header><h1>Visor de DTE</h1><p>Mira tus facturas en JSON como facturas, revísalas y pásalas a Excel.</p></header>
+<main id="app"></main>
+<footer>Herramienta de lectura. No sustituye la validación del Ministerio de Hacienda.</footer>
+<input type="file" id="fi" accept=".json,application/json" multiple hidden>
+<script>
+(function(){
+var TIPOS={"01":"Factura","03":"Comprobante de Crédito Fiscal","04":"Nota de Remisión","05":"Nota de Crédito","06":"Nota de Débito","07":"Comprobante de Retención","08":"Comprobante de Liquidación","09":"Documento Contable de Liquidación","11":"Factura de Exportación","14":"Factura de Sujeto Excluido","15":"Comprobante de Donación"};
+var NOVENTA={"04":"son traslados de mercadería","07":"son retenciones","08":"son liquidaciones","09":"son documentos contables de liquidación","15":"son donaciones"};
+var PAGOS={"01":"Billetes y monedas","02":"Tarjeta débito","03":"Tarjeta crédito","04":"Cheque","05":"Transferencia","06":"Crédito","08":"Dinero electrónico","09":"Monedero electrónico","14":"Transferencia","99":"Otros"};
+var docs=[],avisos=[],sel=null,F={mes:"",tipo:"",q:""};
+var app=document.getElementById("app"),fi=document.getElementById("fi");
+
+function h(t,a){var e=document.createElement(t),k,i,c;
+ if(a)for(k in a){if(k==="class")e.className=a[k];else if(k.indexOf("on")===0)e[k]=a[k];else e.setAttribute(k,a[k])}
+ for(i=2;i<arguments.length;i++){c=arguments[i];if(c===null||c===undefined||c===false)continue;e.appendChild(c.nodeType?c:document.createTextNode(String(c)))}
+ return e}
+function r2(x){return Math.round((x+(x<0?-1:1)*1e-9)*100)/100}
+function num(v){if(v===null||v===undefined||v==="")return null;var n=Number(v);return isNaN(n)?null:n}
+function money(n){if(n===null||n===undefined)return "—";var s=Math.abs(r2(n)).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,",");return(n<0?"-":"")+"$"+s}
+function fdate(s){var m=/^(\d{4})-(\d{2})-(\d{2})/.exec(s||"");return m?m[3]+"/"+m[2]+"/"+m[1]:"No incluida en el archivo"}
+function txt(v,alt){return(v===null||v===undefined||String(v).trim()==="")?(alt||"No incluido en el archivo"):String(v)}
+function aviso(m){avisos.push(m)}
+
+/* ---------- Lectura y normalización ---------- */
+function norm(d,fn){
+ var i=d.identificacion||{},r=d.resumen||{},e=d.emisor||{},c=d.receptor||d.sujetoExcluido||null,t=i.tipoDte,
+ iva=num(r.iva),tr,est=null,g=num(r.totalGravada)||0;
+ if(iva===null)iva=num(r.totalIva);
+ if(iva===null&&Array.isArray(r.tributos)){tr=r.tributos.filter(function(x){return x&&x.codigo==="20"})[0];if(tr)iva=num(tr.valor)}
+ if(iva===null){if(t==="01"||t==="03"||t==="14")est=r2((g-(num(r.descuGravada)||0))*0.13);else if(t==="11")est=0}
+ return{f:fn,tipo:t,num:i.numeroControl,cod:i.codigoGeneracion,fec:i.fecEmi,hora:i.horEmi,
+  em:{n:e.nombre,nit:e.nit,nrc:e.nrc,act:e.descActividad,dir:e.direccion&&e.direccion.complemento},
+  rc:c?{n:c.nombre,nit:c.nit||c.numDocumento,nrc:c.nrc}:null,
+  L:Array.isArray(d.cuerpoDocumento)?d.cuerpoDocumento:[],r:r,iva:iva,est:est,
+  sello:d.selloRecibido||(d.respuestaMH&&d.respuestaMH.selloRecibido)||null,
+  sg:t==="05"?-1:1,venta:!NOVENTA[t],grav:g,
+  exe:num(r.totalExenta)||0,nos:num(r.totalNoSuj)||0,des:num(r.totalDescu)||0,pagar:num(r.totalPagar)};
+}
+async function cargar(files){
+ var antes=docs.length,i,f,t,d,n;
+ for(i=0;i<files.length;i++){f=files[i];
+  try{t=await f.text()}catch(e){aviso(f.name+": no se pudo leer el archivo. Inténtalo de nuevo.");continue}
+  if(t.charCodeAt(0)===0xFEFF)t=t.slice(1);
+  try{d=JSON.parse(t)}catch(e){aviso(f.name+": el archivo no es un JSON válido. Puede estar dañado o incompleto. Vuelve a descargarlo.");continue}
+  if(!d||typeof d!=="object"||Array.isArray(d)||!d.identificacion||!d.resumen){aviso(f.name+": este archivo no es una factura: parece una constancia de recepción o un evento. Busca el archivo del DTE.");continue}
+  n=norm(d,f.name);
+  if(n.cod&&docs.some(function(x){return x.cod===n.cod})){aviso(f.name+": ya estaba cargado, no se agregó otra vez.");continue}
+  docs.push(n)}
+ if(docs.length===1)sel=docs[0];else if(antes<=1)sel=null;
+ render()}
+
+/* ---------- Pantallas ---------- */
+function render(){
+ app.textContent="";
+ avisos.forEach(function(m,k){app.appendChild(h("div",{class:"aviso noprint",role:"alert"},h("span",null,m),h("button",{title:"Cerrar","aria-label":"Cerrar aviso",onclick:function(){avisos.splice(k,1);render()}},"×")))});
+ if(!docs.length){
+  var dz=h("div",{class:"drop",id:"dz"},h("h2",null,"Arrastra aquí el JSON de tu DTE"),h("p",null,"Puedes soltar uno o varios archivos .json a la vez."),h("button",{onclick:function(){fi.click()}},"Elegir archivo"));
+  app.appendChild(dz);app.appendChild(h("p",{class:"priv"},"🔒 Tus archivos no se suben a ningún servidor: se leen aquí mismo, en tu computadora, sin internet."));return}
+ var bar=h("div",{class:"bar noprint"});
+ if(docs.length>1&&sel)bar.appendChild(h("button",{class:"sec",onclick:function(){sel=null;render()}},"← Volver a la tabla"));
+ bar.appendChild(h("span",{class:"sp"}));
+ bar.appendChild(h("button",{class:"sec",onclick:function(){fi.click()}},"Agregar más archivos"));
+ bar.appendChild(h("button",{class:"sec",onclick:function(){if(confirm("¿Quitar todos los archivos cargados?")){docs=[];sel=null;avisos=[];F={mes:"",tipo:"",q:""};render()}}},"Limpiar todo"));
+ app.appendChild(bar);
+ if(sel)ficha(sel);else tabla();
+ app.appendChild(h("p",{class:"priv noprint"},"🔒 Tus archivos no salen de tu computadora."));}
+
+function tipoNombre(t){return TIPOS[t]||("Documento tipo "+txt(t,"desconocido"))}
+function copiar(t,btn){
+ function ok(){btn.textContent="¡Copiado!";setTimeout(function(){btn.textContent="Copiar"},1500)}
+ function fb(){var a=h("textarea");a.value=t;document.body.appendChild(a);a.select();try{document.execCommand("copy");ok()}catch(e){}document.body.removeChild(a)}
+ if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(t).then(ok,fb);else fb()}
+function tag(s,est){return h("span",{class:"tag"+(est?" est":"")},s)}
+function parte(tit,p,vacio){
+ var b=h("div",{class:"parte"},h("h3",null,tit));
+ if(!p&&vacio){b.appendChild(h("p",null,h("b",null,"Consumidor final")));b.appendChild(h("p",{class:"nota"},"El archivo no incluye datos del receptor."));return b}
+ b.appendChild(h("p",null,h("b",null,txt(p.n))));
+ b.appendChild(h("p",null,"NIT: "+txt(p.nit)));b.appendChild(h("p",null,"NRC: "+txt(p.nrc)));
+ if(p.act!==undefined)b.appendChild(h("p",null,"Actividad: "+txt(p.act)));
+ if(p.dir!==undefined)b.appendChild(h("p",null,"Dirección: "+txt(p.dir)));
+ return b}
+
+function ficha(d){
+ var r=d.r,w=h("div",{class:"ficha"}),cp,i,row;
+ w.appendChild(h("div",{class:"bar noprint"},h("span",{class:"sp"}),h("button",{onclick:function(){exportar([d])}},"Exportar a Excel"),h("button",{class:"sec",onclick:function(){window.print()}},"Imprimir / Guardar PDF")));
+ w.appendChild(h("h2",null,tipoNombre(d.tipo)));
+ cp=h("button",{class:"sec noprint",style:"padding:2px 10px;margin-left:8px",onclick:function(){copiar(txt(d.cod,""),cp)}},"Copiar");
+ w.appendChild(h("div",{class:"meta"},h("div",null,"Número de control: ",h("b",null,txt(d.num))),h("div",null,"Código de generación: ",h("span",{class:"cod"},txt(d.cod)),d.cod?cp:null),h("div",null,"Emitido el ",h("b",null,fdate(d.fec))," a las ",h("b",null,txt(d.hora,"—")))));
+ if(!d.venta)w.appendChild(h("div",{class:"warn"},"Este documento no es una venta; en la tabla de lote no se suma a los totales."));
+ w.appendChild(h("div",{class:"partes"},parte("Emisor",d.em),parte("Receptor",d.rc,true)));
+ var th=h("tr",null,h("th",null,"Cant."),h("th",null,"Descripción"),h("th",{class:"r"},"Precio unit."),h("th",{class:"r"},"Descuento"),h("th",{class:"r"},"No sujetas"),h("th",{class:"r"},"Exentas"),h("th",{class:"r"},"Gravadas")),tb=h("tbody");
+ d.L.forEach(function(l){tb.appendChild(h("tr",null,h("td",null,txt(l.cantidad,"—")),h("td",null,txt(l.descripcion,"—")),h("td",{class:"r"},money(num(l.precioUni))),h("td",{class:"r"},money(num(l.montoDescu)||0)),h("td",{class:"r"},money(num(l.ventaNoSuj)||0)),h("td",{class:"r"},money(num(l.ventaExenta)||0)),h("td",{class:"r"},money(num(l.ventaGravada)||0))))});
+ if(!d.L.length)tb.appendChild(h("tr",null,h("td",{colspan:7,class:"nota"},"El archivo no trae líneas de detalle.")));
+ w.appendChild(h("div",{class:"scroll"},h("table",null,h("thead",null,th),tb)));
+ /* Totales */
+ var T=h("div",{class:"tot"}),sub=num(r.subTotalVentas),calc=false;
+ if(sub===null){sub=r2(d.grav+d.exe+d.nos);calc=true}
+ function fila(l,v,t,cls){T.appendChild(h("div",{class:cls||""},h("span",null,l,t),h("b",{class:"r"},v)))}
+ fila("Subtotal ventas",money(sub),calc?tag("calculado por la app",true):tag("del archivo"));
+ fila("Descuentos",money(d.des),num(r.totalDescu)===null?tag("calculado por la app",true):tag("del archivo"));
+ if(d.iva!==null)fila("IVA",money(d.iva),tag("del archivo"));
+ else{fila("IVA","No incluido en el archivo");if(d.est!==null)fila("IVA estimado",money(d.est),tag("estimado por la app",true))}
+ var tng=num(r.totalNoGravado);fila("Total no gravado",tng===null?"No incluido en el archivo":money(tng),tng===null?null:tag("del archivo"));
+ fila("TOTAL A PAGAR",money(d.pagar),null,"g");
+ w.appendChild(T);
+ if(r.totalLetras)w.appendChild(h("p",{style:"text-align:right;margin:8px 0 0"},h("span",{class:"nota"},"Son: "),txt(r.totalLetras)));
+ if(d.iva===null&&d.est!==null)w.appendChild(h("div",{class:"warn"},"Este archivo no incluye el IVA; el valor mostrado es un estimado de la app."));
+ /* Coherencia */
+ var sl=0;d.L.forEach(function(l){sl+=(num(l.ventaGravada)||0)+(num(l.ventaExenta)||0)+(num(l.ventaNoSuj)||0)});
+ var gd=(num(r.descuNoSuj)||0)+(num(r.descuExenta)||0)+(num(r.descuGravada)||0),esp=sl-gd+((d.tipo==="01"||d.iva===null)?0:d.iva);
+ if(d.pagar!==null&&d.L.length&&Math.abs(r2(d.pagar)-r2(esp))>0.01)w.appendChild(h("div",{class:"warn"},"Revisa este documento: el total a pagar ("+money(d.pagar)+") no coincide con las líneas más IVA ("+money(esp)+"). Puede deberse a un descuento global o a una retención."));
+ /* Condición y pago */
+ var co={1:"Contado",2:"A crédito",3:"Otro"}[r.condicionOperacion],pg=Array.isArray(r.pagos)?r.pagos.map(function(p){return(PAGOS[p.codigo]||("Código "+p.codigo))+(num(p.montoPago)!==null?" ("+money(num(p.montoPago))+")":"")}).join(", "):"";
+ if(co||pg)w.appendChild(h("p",{style:"margin-top:16px"},co?h("span",null,"Condición de la operación: ",h("b",null,co),"   "):null,pg?h("span",null,"Forma de pago: ",h("b",null,pg)):null));
+ w.appendChild(h("p",{class:"nota"},d.sello?"Sello de recepción: "+d.sello:"El archivo no incluye sello de recepción."));
+ app.appendChild(w)}
+
+function filtradas(){var q=F.q.trim().toLowerCase();
+ return docs.filter(function(d){
+  if(F.mes&&(d.fec||"").slice(0,7)!==F.mes)return false;
+  if(F.tipo&&d.tipo!==F.tipo)return false;
+  if(q){var s=[d.em.n,d.em.nit,d.rc&&d.rc.n,d.rc&&d.rc.nit,d.cod,d.num].join(" ").toLowerCase();if(s.indexOf(q)<0)return false}
+  return true})}
+
+function tabla(){
+ var rows=filtradas(),ventas=rows.filter(function(d){return d.venta}),otros=rows.filter(function(d){return!d.venta}),g=0,iv=0,tp=0,est=0;
+ ventas.forEach(function(d){g+=d.sg*d.grav;tp+=d.sg*(d.pagar||0);if(d.iva!==null)iv+=d.sg*d.iva;else if(d.est!==null){iv+=d.sg*d.est;est++}});
+ function k(l,v){return h("div",{class:"k"},h("span",null,l),h("b",null,v))}
+ app.appendChild(h("div",{class:"cards"},k("Documentos cargados",String(rows.length)),k("Total gravado",money(g)),k("IVA",money(iv)),k("Total a pagar",money(tp))));
+ app.appendChild(h("p",{class:"nota"},"Según los archivos cargados. Las notas de crédito se restan (en rojo) y las notas de débito se suman."+(est?" El IVA incluye un estimado de la app en "+est+" documento(s) que no lo traen.":"")));
+ if(otros.length){var c={};otros.forEach(function(d){c[d.tipo]=(c[d.tipo]||0)+1});
+  app.appendChild(h("p",{class:"nota"},"Aparte, sin sumar a los totales: "+Object.keys(c).map(function(t){return c[t]+" "+tipoNombre(t).toLowerCase()+" ("+NOVENTA[t]+")"}).join("; ")+"."))}
+ var meses=[],tipos=[];docs.forEach(function(d){var m=(d.fec||"").slice(0,7);if(m&&meses.indexOf(m)<0)meses.push(m);if(tipos.indexOf(d.tipo)<0)tipos.push(d.tipo)});meses.sort();
+ var sm=h("select",{"aria-label":"Filtrar por mes",onchange:function(){F.mes=this.value;render()}},h("option",{value:""},"Todos los meses")),
+ st=h("select",{"aria-label":"Filtrar por tipo",onchange:function(){F.tipo=this.value;render()}},h("option",{value:""},"Todos los tipos")),
+ q=h("input",{type:"search",placeholder:"Buscar emisor, NIT o código",value:F.q,"aria-label":"Buscar",style:"flex:1;min-width:200px",oninput:function(){F.q=this.value;var p=this.selectionStart;render();var n=document.querySelector("input[type=search]");n.focus();n.setSelectionRange(p,p)}});
+ meses.forEach(function(m){var o=h("option",{value:m},m.slice(5)+"/"+m.slice(0,4));if(m===F.mes)o.selected=true;sm.appendChild(o)});
+ tipos.forEach(function(t){var o=h("option",{value:t},tipoNombre(t));if(t===F.tipo)o.selected=true;st.appendChild(o)});
+ app.appendChild(h("div",{class:"filtros noprint"},sm,st,q,h("button",{onclick:function(){exportar(rows)}},"Exportar a Excel ("+rows.length+")")));
+ app.appendChild(h("p",{class:"nota noprint"},"El Excel incluye lo que ves en pantalla, con los filtros aplicados."));
+ var tb=h("tbody");
+ rows.forEach(function(d){
+  var neg=d.sg<0,cls=neg?"neg":"",go=function(){sel=d;render();window.scrollTo(0,0)};
+  tb.appendChild(h("tr",{tabindex:0,class:cls,onclick:go,onkeydown:function(e){if(e.key==="Enter")go()}},h("td",null,fdate(d.fec)),h("td",null,tipoNombre(d.tipo)),h("td",{class:"cod"},txt(d.num,"—")),h("td",null,txt(d.em.n,"—")),h("td",null,d.rc?txt(d.rc.n,"—"):"Consumidor final"),h("td",null,d.rc?txt(d.rc.nit,"—"):"—"),h("td",{class:"r"},money(d.pagar!==null?d.sg*d.pagar:null))))});
+ if(!rows.length)tb.appendChild(h("tr",null,h("td",{colspan:7,class:"nota"},"Ningún documento coincide con el filtro.")));
+ var hr=h("tr");["Fecha","Tipo","Número de control","Emisor","Receptor","NIT"].forEach(function(x){hr.appendChild(h("th",null,x))});hr.appendChild(h("th",{class:"r"},"Total a pagar"));
+ app.appendChild(h("div",{class:"lote scroll"},h("table",null,h("thead",null,hr),tb)))}
+
+/* ---------- Exportar (Excel 2003 XML: texto y números sin ambigüedad de idioma) ---------- */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function exportar(rows){
+ if(!rows.length){aviso("No hay documentos para exportar.");render();return}
+ var H=["Fecha","Tipo DTE","Número de Control","Código Generación","NIT Emisor","Emisor","NIT Receptor","Receptor","Descripción","Total Gravado","Exentas","No Sujetas","Descuentos","IVA","Total Pagar"];
+ function S(v){return'<Cell><Data ss:Type="String">'+esc(v===null||v===undefined?"":v)+'</Data></Cell>'}
+ function N(v){return v===null||v===undefined?S(""):'<Cell ss:StyleID="n"><Data ss:Type="Number">'+r2(v).toFixed(2)+'</Data></Cell>'}
+ var x='<?xml version="1.0" encoding="UTF-8"?><?mso-application progid="Excel.Sheet"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="n"><NumberFormat ss:Format="0.00"/></Style><Style ss:ID="h"><Font ss:Bold="1"/></Style></Styles><Worksheet ss:Name="DTE"><Table>';
+ x+='<Row>'+H.map(function(t){return'<Cell ss:StyleID="h"><Data ss:Type="String">'+t+'</Data></Cell>'}).join("")+'</Row>';
+ rows.forEach(function(d){var s=d.sg;
+  x+='<Row>'+S(fdate(d.fec))+S(d.tipo?d.tipo+" - "+tipoNombre(d.tipo):"")+S(d.num)+S(d.cod)+S(d.em.nit)+S(d.em.n)+S(d.rc?d.rc.nit:"")+S(d.rc?d.rc.n:"Consumidor final")+S(d.L.map(function(l){return l.descripcion}).filter(function(v){return v}).join("; "))+N(s*d.grav)+N(s*d.exe)+N(s*d.nos)+N(s*d.des)+N(d.iva===null?null:s*d.iva)+N(d.pagar===null?null:s*d.pagar)+'</Row>'});
+ x+='</Table></Worksheet></Workbook>';
+ var n=new Date(),p=function(v){return(v<10?"0":"")+v},
+ a=h("a",{href:URL.createObjectURL(new Blob([x],{type:"application/vnd.ms-excel"})),download:"DTE_"+n.getFullYear()+p(n.getMonth()+1)+p(n.getDate())+".xls"});
+ document.body.appendChild(a);a.click();document.body.removeChild(a)}
+
+/* ---------- Eventos ---------- */
+fi.onchange=function(){if(fi.files.length)cargar(Array.prototype.slice.call(fi.files));fi.value=""};
+document.addEventListener("dragover",function(e){e.preventDefault();var z=document.getElementById("dz");if(z)z.className="drop on"});
+document.addEventListener("dragleave",function(){var z=document.getElementById("dz");if(z)z.className="drop"});
+document.addEventListener("drop",function(e){e.preventDefault();if(e.dataTransfer&&e.dataTransfer.files.length)cargar(Array.prototype.slice.call(e.dataTransfer.files));else render()});
+render();
+})();
+</script>
+</body>
+</html>
